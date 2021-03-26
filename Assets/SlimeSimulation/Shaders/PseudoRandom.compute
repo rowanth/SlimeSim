@@ -1,0 +1,29 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel PseudoRandom
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Texture;
+uint width;
+uint height;
+
+//Hash Function
+uint hash(uint state) {
+    state ^= 2747636419u;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    return state;
+}
+[numthreads(8,8,1)]
+void PseudoRandom(uint3 id : SV_DispatchThreadID)
+{
+    //Outside Bounds
+    if (id.x < 0 || id.x >= width || id.y < 0 || id.y >= height) { return; }
+
+    int pixelIdx = id.y * width + id.x;
+    uint pseudoRandomNumber = hash(pixelIdx);
+    Texture[id.xy] = pseudoRandomNumber / 4294967295.0;
+}
