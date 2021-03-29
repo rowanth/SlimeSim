@@ -1,0 +1,104 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Update
+
+#define PI 3.14159265358979323846
+
+RWTexture2D<float4> ProcessedTrailMap; //dest
+RWTexture2D<float4> TrailMap; //from
+uint width;
+uint height;
+
+float deltaTime;
+
+struct Agent {
+    float2 position;
+    float angle;
+};
+RWStructuredBuffer<Agent> agents;
+uint numAgents;
+float moveSpeed;
+float turnSpeed;
+int sensorOffsetDst;
+int sensorSize;
+float sensorAngleSpacing;
+
+//Hash Function
+uint hash(uint state) {
+    state ^= 2747636419u;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    return state;
+}
+
+float scaleToRange01(uint random) {
+    return random / 4294967295.0;
+}
+
+float sense(Agent agent, float sensorAngleOffset) {
+    float sensorAngle = agent.angle + sensorAngleOffset;
+    float2 sensorDir = float2(cos(sensorAngle), sin(sensorAngle));
+    int2 sensorCentre = agent.position + (sensorDir * sensorOffsetDst);
+    
+    float sum = 0;
+    for (int offsetX = -sensorSize; offsetX <= sensorSize; offsetX++) {
+        for (int offsetY = -sensorSize; offsetY <= sensorSize; offsetY++) {
+            int2 pos = sensorCentre + int2(offsetX, offsetY);
+
+            if (pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height) {
+                sum += TrailMap[pos].x;
+            }
+        }
+    }
+
+    return sum;
+}
+
+[numthreads(16,1,1)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= numAgents) { return; }
+
+    Agent agent = agents[id.x];
+    uint random = hash(agent.position.y * width + agent.position.x + hash(id.x));
+
+    //Steer based on sensory data
+    float weightForward = sense(agent, 0);
+    float weightLeft = sense(agent, sensorAngleSpacing);
+    float weightRight = sense(agent, -sensorAngleSpacing);
+
+    float randomSteerStrength = 1.0f;//scaleToRange01(random);
+
+    //Continue in same direction
+    if(weightForward > weightLeft && weightForward > weightRight) {
+        agents[id.x].angle += 0;
+    }
+    //Turn randomly
+    else if (weightForward < weightLeft && weightForward < weightRight) {
+        agents[id.x].angle += (randomSteerStrength - 0.5) * 2 * turnSpeed * deltaTime;
+    }
+    //Turn right
+    else if (weightRight > weightLeft) {
+        agents[id.x].angle -= randomSteerStrength * turnSpeed * deltaTime;
+    }
+    //Turn left
+    else if (weightLeft > weightRight) {
+        agents[id.x].angle += randomSteerStrength * turnSpeed * deltaTime;
+    }
+
+    //Move agent based on diraction and speed
+    float2 direction = float2(cos(agent.angle), sin(agent.angle));
+    float2 newPos = agent.position + (direction * moveSpeed * deltaTime);
+
+    //Clamp position to map boundaries, and pick new random move angle if hit boundary
+    if (newPos.x < 0 || newPos.x >= width || newPos.y < 0 || newPos.y >= height) {
+        newPos.x = min(width-0.01, max(0, newPos.x));
+        newPos.y = min(height-0.01, max(0, newPos.y));
+        agents[id.x].angle = (random / 4294967295.0) * 2 * PI;
+    }
+
+    agents[id.x].position = newPos;
+    ProcessedTrailMap[int2(newPos.x, newPos.y)] = 1;
+}

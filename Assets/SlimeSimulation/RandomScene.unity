@@ -391,8 +391,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 940f01ca3476e1f4b9b8dfc40df85b05, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  computeShader: {fileID: 7200000, guid: c7188c073c14cdc488605b072235340d, type: 3}
+  updateSlimeShader: {fileID: 7200000, guid: c7188c073c14cdc488605b072235340d, type: 3}
+  processTrailsShader: {fileID: 7200000, guid: d5db0f2240489634d86b6a0bd3d60c27, type: 3}
   textureMaterial: {fileID: 2100000, guid: 038a764186dd506459a06d878b8e2809, type: 2}
+  dims: {x: 800, y: 800}
+  numAgents: 2000
+  moveSpeed: 50
+  diffusionSpeed: 1
+  evaporationSpeed: 1
+  sensorAngle: 1
+  sensorDistance: 1
+  sensorSize: 1
 --- !u!4 &1041542823
 Transform:
   m_ObjectHideFlags: 0

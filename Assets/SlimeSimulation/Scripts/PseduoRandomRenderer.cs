@@ -4,61 +4,90 @@ using UnityEngine;
 
 public class PseduoRandomRenderer : MonoBehaviour
 {
-    public ComputeShader computeShader;
+    public ComputeShader updateSlimeShader;
+    public ComputeShader processTrailsShader;
+
     public Material textureMaterial;
+    public Vector2 dims = new Vector2(512,512);
+    public int numAgents = 200;
+    public float moveSpeed = 40.0f;
+    public float diffusionSpeed = 1.0f;
+    public float evaporationSpeed = 1.0f;
+
+    public float sensorAngle = 1.0f;
+    public float sensorDistance = 1.0f;
+    public int sensorSize = 1;
 
     private RenderTexture trailTexture;
     private RenderTexture processedTrailTexture;
     private ComputeBuffer agentBuffer;
-    private int numAgents = 500;
+
     int UpdateKernelID;
     int ProcessTrailMapKernelID;
 
     void Start()
     {
-        CreateRenderTexture(ref trailTexture, 512, 512);
-        CreateRenderTexture(ref processedTrailTexture, 512, 512);
+        //Create RTs
+        CreateRenderTexture(ref trailTexture, (int)dims.x, (int)dims.y);
+        CreateRenderTexture(ref processedTrailTexture, (int)dims.x, (int)dims.x);
 
-        UpdateKernelID = computeShader.FindKernel("Update");
-        ProcessTrailMapKernelID = computeShader.FindKernel("ProcessTrailMap");
+        //Grab Kernel IDs
+        UpdateKernelID = updateSlimeShader.FindKernel("Update");
+        ProcessTrailMapKernelID = processTrailsShader.FindKernel("ProcessSlimeTrails");
 
-        computeShader.SetTexture(UpdateKernelID, "TrailMap", trailTexture);
-        computeShader.SetTexture(ProcessTrailMapKernelID, "TrailMap", trailTexture);
-        computeShader.SetTexture(ProcessTrailMapKernelID, "ProcessedTrailMap", trailTexture);
-        computeShader.SetInt("width", trailTexture.width);
-        computeShader.SetInt("height", trailTexture.height);
+        updateSlimeShader.SetTexture(UpdateKernelID, "TrailMap", trailTexture);
+        updateSlimeShader.SetTexture(UpdateKernelID, "ProcessedTrailMap", processedTrailTexture);
 
-        computeShader.SetInt("numAgents", numAgents);
-        computeShader.SetFloat("moveSpeed", 10.0f);
-        computeShader.SetFloat("deltaTime", 0.02f);
-        computeShader.SetFloat("evaporateSpeed", 1.0f);
+        processTrailsShader.SetTexture(ProcessTrailMapKernelID, "TrailMap", processedTrailTexture);
+        processTrailsShader.SetTexture(ProcessTrailMapKernelID, "ProcessedTrailMap", trailTexture);
 
+        GenerateAgents();
+        updateSlimeShader.SetBuffer(UpdateKernelID, "agents", agentBuffer);
+
+        updateSlimeShader.SetInt("width", (int)dims.x);
+        updateSlimeShader.SetInt("height", (int)dims.y);
+        updateSlimeShader.SetFloat("deltaTime", 0.02f);
+
+        updateSlimeShader.SetInt("numAgents", numAgents);
+        updateSlimeShader.SetFloat("moveSpeed", moveSpeed);
+        updateSlimeShader.SetFloat("sensorAngleSpacing ", sensorAngle);
+        updateSlimeShader.SetFloat("sensorDistance", sensorDistance);
+        updateSlimeShader.SetInt("sensorSize", sensorSize);
+
+        processTrailsShader.SetInt("width", (int)dims.x);
+        processTrailsShader.SetInt("height", (int)dims.y);
+        processTrailsShader.SetFloat("deltaTime", 0.02f);
+        processTrailsShader.SetFloat("evaporationSpeed", evaporationSpeed);
+        processTrailsShader.SetFloat("diffusionSpeed", diffusionSpeed);
+
+        textureMaterial.mainTexture = trailTexture;
+    }
+
+    private void Update()
+    {
+        trailTexture.DiscardContents();
+        updateSlimeShader.SetFloat("deltaTime", Time.deltaTime);
+        processTrailsShader.SetFloat("deltaTime", Time.deltaTime);
+
+        updateSlimeShader.Dispatch(UpdateKernelID, ((int)dims.x * (int)dims.y) / 16, 1, 1);
+        processTrailsShader.Dispatch(ProcessTrailMapKernelID, (int)dims.x / 8, (int)dims.x / 8, 1);
+    }
+
+    void GenerateAgents()
+    {
         List<Agent> agents = new List<Agent>();
         for (int n = 0; n < numAgents; n++)
         {
             Agent agent = new Agent();
-            agent.position = new Vector2(trailTexture.width/2, trailTexture.height/2);
-                //Random.Range(0, renderTexture.width),
-                //Random.Range(0, renderTexture.height));
+            agent.position = new Vector2(//(int)dims.x / 2, (int)dims.y / 2);
+                Random.Range(0, (int)dims.x),
+                Random.Range(0, (int)dims.y));
             agent.angle = Random.Range(0, 360);
             agents.Add(agent);
         }
 
         agentBuffer = new ComputeBuffer(agents.Count, (sizeof(float) * 2) + sizeof(float), ComputeBufferType.Default);
         agentBuffer.SetData<Agent>(agents);
-        computeShader.SetBuffer(UpdateKernelID, "agents", agentBuffer);
-        computeShader.SetBuffer(ProcessTrailMapKernelID, "agents", agentBuffer);
-    }
-
-    private void Update()
-    {
-        computeShader.SetFloat("deltaTime", Time.deltaTime);
-        computeShader.Dispatch(UpdateKernelID, (trailTexture.width * trailTexture.height) / 16, 1, 1);
-
-        textureMaterial.mainTexture = trailTexture;
-
-        int groups = Mathf.CeilToInt(processedTrailTexture.width / 8f);
-        computeShader.Dispatch(ProcessTrailMapKernelID, groups, groups, 1);
     }
 
     void CreateRenderTexture(ref RenderTexture rt, int w, int h)
@@ -67,6 +96,7 @@ public class PseduoRandomRenderer : MonoBehaviour
         rt.enableRandomWrite = true;
         rt.Create();
     }
+
     void OnDestroy()
     {
         agentBuffer.Dispose();

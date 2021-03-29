@@ -1,0 +1,49 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ProcessSlimeTrails
+
+#define PI 3.14159265358979323846
+
+RWTexture2D<float4> AgentMap; //from
+RWTexture2D<float4> TrailMap; //dest
+uint width;
+uint height;
+
+float deltaTime;
+
+float diffusionSpeed;
+float evaporationSpeed;
+
+[numthreads(8, 8, 1)]
+void ProcessSlimeTrails(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < 0 || id.x >= width || id.y < 0 || id.y >= height) { 
+        return; 
+    }
+
+    float4 originalValue = TrailMap[id.xy];
+
+    //Simulate diffusion with a simple 3x3 blur
+    // (averages the values of the 3x3 block around current pixel)
+    float4 sum = 0;
+    for (int offsetX = -1; offsetX <= 1; offsetX++)
+    {
+        for (int offsetY = -1; offsetY <= 1; offsetY++)
+        {
+            int sampleX = id.x + offsetX;
+            int sampleY = id.y + offsetY;
+
+            if (sampleX >= 0 && sampleX < width && sampleY >= 0 && sampleY < height) 
+            {
+                sum += TrailMap[int2(sampleX, sampleY)];
+            }
+        }
+    }
+    float4 blurResult = sum / 9;
+
+    //Blend between original and blurred value based on diffusion speed
+    float4 diffusedValue = lerp(originalValue, blurResult,  diffusionSpeed * deltaTime);
+    //Subtract from the value to simulate evaporation
+    float4 diffusedAndEvaporatedValue = max(0, diffusedValue - evaporationSpeed * deltaTime);
+
+    ProcessedTrailMap[id.xy] = diffusedAndEvaporatedValue;
+}
