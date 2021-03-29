@@ -3,8 +3,8 @@
 
 #define PI 3.14159265358979323846
 
-RWTexture2D<float4> AgentMap; //from
-RWTexture2D<float4> TrailMap; //dest
+RWTexture2D<float4> TrailMap; //from
+RWTexture2D<float4> ProcessedTrailMap; //dest
 uint width;
 uint height;
 
@@ -45,5 +45,5 @@ void ProcessSlimeTrails(uint3 id : SV_DispatchThreadID)
     //Subtract from the value to simulate evaporation
     float4 diffusedAndEvaporatedValue = max(0, diffusedValue - evaporationSpeed * deltaTime);
 
-    ProcessedTrailMap[id.xy] = diffusedAndEvaporatedValue;
+    TrailMap[id.xy] = diffusedAndEvaporatedValue;
 }

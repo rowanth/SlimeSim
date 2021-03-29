@@ -7,7 +7,9 @@ public class PseduoRandomRenderer : MonoBehaviour
     public ComputeShader updateSlimeShader;
     public ComputeShader processTrailsShader;
 
-    public Material textureMaterial;
+    public Material agentMaterial;
+    public Material trailMaterial;
+
     public Vector2 dims = new Vector2(512,512);
     public int numAgents = 200;
     public float moveSpeed = 40.0f;
@@ -60,7 +62,8 @@ public class PseduoRandomRenderer : MonoBehaviour
         processTrailsShader.SetFloat("evaporationSpeed", evaporationSpeed);
         processTrailsShader.SetFloat("diffusionSpeed", diffusionSpeed);
 
-        textureMaterial.mainTexture = trailTexture;
+        agentMaterial.mainTexture = trailTexture;
+        trailMaterial.mainTexture = processedTrailTexture;
     }
 
     private void Update()
